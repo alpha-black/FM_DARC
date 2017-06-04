@@ -1,2 +1,5 @@
 #Build
 build/
+
+#Generated py
+gr-sdr_darc/apps/top_block.py
