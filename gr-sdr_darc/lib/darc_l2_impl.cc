@@ -22,10 +22,11 @@
 #include "config.h"
 #endif
 
+#include <arpa/inet.h>
+#include <bitset>
 #include <gnuradio/io_signature.h>
 #include "darc_l2_impl.h"
 #include "darc_l2_utils.h"
-#include <arpa/inet.h>
 
 namespace gr {
 namespace sdr_darc {
@@ -56,12 +57,10 @@ namespace sdr_darc {
     int darc_l2_impl::general_work (int noutput_items, gr_vector_int &ninput_items,
             gr_vector_const_void_star &input_items, gr_vector_void_star &output_items) {
 
-        const char *input = (const char *) input_items[0];
-        char *output = (char *) output_items[0];
-
         int n_out_items = 0;
         unsigned short _BIC = 0x0000;
         unsigned int n_items_done = 0;
+        const char *input = (const char *) input_items[0];
 
         while(n_items_done < (ninput_items[0] - BLOCK_LEN)) {
             _BIC = (_BIC << 1) | input[n_items_done];
@@ -69,19 +68,12 @@ namespace sdr_darc {
             if (_BIC == BIC1 || _BIC == BIC2 || _BIC == BIC3 || _BIC == BIC4) {
                 std::cout << "BIC found " << get_BIC_string(_BIC) << std::endl;
 
-                int output_indx =  n_out_items * (BLOCK_LEN/8);
-                /* TODO remove. Put BIC and unscrambled data in output */
-                output[output_indx++] = (char)((_BIC >> 8) & 0xFF);
-                output[output_indx++] = (char)(_BIC & 0xFF);
-
                 /* Unscramble data */
                 for (unsigned int i = 0; i < BLOCK_DLEN; ++i) {
                     int indx = i / 16;
                     l2_data[indx] = (l2_data[indx] << 1) | input[++n_items_done];
                     if (i != 0 && i % 16 == 15) {
                         l2_data[indx] = l2_data[indx] ^ scramble_table[indx];
-                        output[output_indx + indx * 2] = (char)((l2_data[indx] >> 8) & 0xFF);
-                        output[output_indx + (indx * 2)+1] = (char)(l2_data[indx] & 0xFF);
                     }
                 }
                 process_l3();
@@ -99,6 +91,8 @@ namespace sdr_darc {
     }
 
     void darc_l2_impl::process_l3() {
+        //std::cout << "CRC " << darc_l2_crc14() << "\n";
+
         /* Only 22 bytes of l2_data is data. Rest are CRC and parity */
         unsigned short *data = NULL;
         unsigned int remaining_bits = 0;
@@ -228,6 +222,33 @@ namespace sdr_darc {
                 }
             } std::cout << "\n";
         }
+    }
+
+    bool darc_l2_impl::darc_l2_crc14() {
+        /* L2 data - 176 Info + 14 CRC + 82 Parity */
+        unsigned char *data = new unsigned char[12];
+        memcpy(data, &l2_data[0], 12);
+        unsigned int data_start = 0;
+        unsigned int data_end = data_start + 15;
+
+        for (unsigned int i = 0; i < 190; ++i) {
+            unsigned short pol_ = 0x4805;
+
+            for (unsigned int j = 0; j < 15; ++j) {
+                if ((((pol_ & 0x4000) >> 14) == 0x1) && (data_end < 190)) {
+                   *(&data[data_start] + j) = !(*(&data[data_start] + j));
+                }
+                pol_ = (pol_ << 1);
+            }
+            data_start += 15; data_end = data_start + 15;
+        }
+
+        for (unsigned int i = 0; i < 190/8; ++i) {
+            if (data[i] != 0x00)
+                return false;
+        }
+        free(data);
+        return true;
     }
 
 } /* namespace sdr_darc */

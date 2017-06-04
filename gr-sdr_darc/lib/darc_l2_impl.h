@@ -29,8 +29,8 @@ namespace sdr_darc {
     class darc_l2_impl : public darc_l2 {
         private:
             unsigned short l2_data[18];
-
             void process_l3();
+            bool darc_l2_crc14();
 
         public:
             darc_l2_impl(bool enable_crc);
