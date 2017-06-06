@@ -66,7 +66,7 @@ namespace sdr_darc {
             _BIC = (_BIC << 1) | input[n_items_done];
 
             if (_BIC == BIC1 || _BIC == BIC2 || _BIC == BIC3 || _BIC == BIC4) {
-                std::cout << "BIC found " << get_BIC_string(_BIC) << std::endl;
+                std::cout << "BIC found " << get_BIC_string(_BIC);
 
                 /* Unscramble data */
                 for (unsigned int i = 0; i < BLOCK_DLEN; ++i) {
@@ -91,7 +91,7 @@ namespace sdr_darc {
     }
 
     void darc_l2_impl::process_l3() {
-        //std::cout << "CRC " << darc_l2_crc14() << "\n";
+        std::cout << " CRC14 " << darc_l2_crc14() << "\n";
 
         /* Only 22 bytes of l2_data is data. Rest are CRC and parity */
         unsigned short *data = NULL;
@@ -137,12 +137,18 @@ namespace sdr_darc {
                     break;
                 case 0x0004:
                     std::cout << "Service Alternate Freq. Table,\n";
+                    data = (unsigned short *)(&l2_data[3]);
+                    remaining_bits = BLOCK_INFO_LEN - (3 * 16);
                     break;
                 case 0x000C:
                     std::cout << "Time, Date, Position and Network name Table,\n";
+                    data = (unsigned short *)(&l2_data[3]);
+                    remaining_bits = BLOCK_INFO_LEN - (3 * 16);
                     break;
                 case 0x0002:
                     std::cout << "Service Name Table,\n";
+                    data = (unsigned short *)(&l2_data[3]);
+                    remaining_bits = BLOCK_INFO_LEN - (3 * 16);
                     break;
                 case 0x000A:
                     std::cout << "Time and Date Table , ";
@@ -206,9 +212,15 @@ namespace sdr_darc {
         if (data) {
             std::cout << "Data dump - \n";
             for (unsigned int i = 0; i < remaining_bits/16; ++i) {
+                unsigned short d = ntohs(data[i]);
+                printf("%#x ", ((d & 0xFF00) >> 8));
+                printf("%#x ", (d & 0x00FF));
+            } std::cout << "\n";
+
+            for (unsigned int i = 0; i < remaining_bits/16; ++i) {
                 /* Some CRC could get printed with this */
                 unsigned short d = ntohs(data[i]);
-                unsigned char byte1 = (unsigned char)((d >> 8) & 0xFF00);
+                unsigned char byte1 = (unsigned char)(((d & 0xFF00) >> 8));
                 unsigned char byte2 = (unsigned char)(d & 0x00FF);
                 if (byte1 >= 0x20 && byte1 <= 0x7E) {
                     printf("%c ", byte1);
@@ -226,28 +238,28 @@ namespace sdr_darc {
 
     bool darc_l2_impl::darc_l2_crc14() {
         /* L2 data - 176 Info + 14 CRC + 82 Parity */
-        unsigned char *data = new unsigned char[12];
-        memcpy(data, &l2_data[0], 12);
-        unsigned int data_start = 0;
-        unsigned int data_end = data_start + 15;
-
-        for (unsigned int i = 0; i < 190; ++i) {
-            unsigned short pol_ = 0x4805;
-
-            for (unsigned int j = 0; j < 15; ++j) {
-                if ((((pol_ & 0x4000) >> 14) == 0x1) && (data_end < 190)) {
-                   *(&data[data_start] + j) = !(*(&data[data_start] + j));
-                }
-                pol_ = (pol_ << 1);
+        std::bitset<190> data;
+        for (unsigned int i = 0; i < 12; ++i) {
+            unsigned int j_max = std::min (16, int(190 - i*16));
+            for (unsigned int j = 0; j < j_max; ++j) {
+                data[i*16 + j] = ((l2_data[i] << j) & 0x8000);
             }
-            data_start += 15; data_end = data_start + 15;
         }
 
-        for (unsigned int i = 0; i < 190/8; ++i) {
-            if (data[i] != 0x00)
+        std::bitset<15> pol(0x4805);
+
+        for (int i = 0; i < 172; ++i) {
+            if (!data[i]) {
+                continue;
+            }
+            for (int j = 0; j < 15; ++j) {
+                data[i+j] = data[i+j] ^ pol[j];
+            }
+        }
+        for (int i = 0; i < 172; ++i) {
+            if (data[i] != 0)
                 return false;
         }
-        free(data);
         return true;
     }
 
