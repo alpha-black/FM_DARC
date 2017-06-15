@@ -1,4 +1,5 @@
-# FM_DARC
+# FM_DARC - dev
+
 DARC decoding with SDR
 
 This is a GNU Radio project to decode DARC (Data Radio Channel) messages sent with radio broadcasting (FM) at a subcarrier frequency of 76kHz. The receiver is an RTL-SDR R820T2 module. The decoding of the messages from Layer1 to Layer5 follows ETSI EN 300 751 V1.2.1 (2003-01) available at http://www.etsi.org/deliver/etsi_en/300700_300799/300751/01.02.01_60/en_300751v010201p.pdf
