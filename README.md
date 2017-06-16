@@ -1,4 +1,4 @@
-# FM_DARC - dev
+# FM_DARC
 
 DARC decoding with SDR
 
